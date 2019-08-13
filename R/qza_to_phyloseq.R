@@ -21,20 +21,32 @@ qza_to_phyloseq <- function(features,tree,taxonomy,metadata, tmp){
     stop("At least one required artifact is needed (features/tree/taxonomy/) or the metadata.")
    }
 
-if(missing(tmp)){tmp  <-  tempdir()}
-  argstring <- ""
+if(missing(tmp))
+  tmp  <-  tempdir()
+
+argstring <- ""
 
   if(!missing(features)){
-    features <- read_qza(features, tmp=tmp)$data
-    argstring <- paste(argstring, "otu_table(features, taxa_are_rows=T),")
+    features <- read_qza(features, tmp = tmp)$data
+    argstring <- paste(argstring,
+                       "otu_table(features, taxa_are_rows=T),",
+                       sep = "")
   }
 
   if(!missing(taxonomy)){
-    taxonomy <- read_qza(taxonomy, tmp=tmp)$data
-    taxt <- strsplit(as.character(taxonomy$Taxon),"\\; ")
-    taxt <- lapply(taxt, function(x){length(x)=7;return(x)})
+    taxonomy <- read_qza(taxonomy, tmp = tmp)$data
+    if (all(grepl("D_[0-6] || Unassigned", taxonomy$Taxon))) {
+      taxt <- strsplit(as.character(taxonomy$Taxon), "\\;")
+    } else {
+      taxt <- strsplit(as.character(taxonomy$Taxon), "\\; ")
+      taxt <- lapply(taxt, function(x) replace(x, grepl("^[kpcofgs]__$", x), NA))
+    }
+
+    taxt <- lapply(taxt, function(x) {
+      length(x) <- 7
+      return(x)
+    })
     taxt <- do.call(rbind, taxt)
-    taxt <- apply(taxt,2, function(x) replace(x, grepl("^[kpcofgs]__$", x), NA))
     rownames(taxt) <- taxonomy$Feature.ID
     colnames(taxt) <- c("Kingdom","Phylum","Class","Order","Family","Genus","Species")
     argstring <- paste(argstring, "tax_table(taxt),")
